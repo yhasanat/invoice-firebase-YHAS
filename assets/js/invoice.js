@@ -250,11 +250,30 @@ async function saveCurrentInvoice(type, paymentOnly = false){
 
   AppState.currentInvoice.name = name;
 
+  // حساب الإجمالي قبل الحفظ
+  updateInvoiceTotals(type);
+
+  // خزّن في الذاكرة المحلية لعرضه فوراً
   DataStore.invoices.push({ ...AppState.currentInvoice });
 
-  alert(paymentOnly ? "تم تسجيل الدفعة" : "تم حفظ الفاتورة");
+  // حاول الحفظ في Firebase (Offline persistence سيعمل حتى بدون نت)
+  if (typeof saveInvoiceToDB === "function") {
+    const res = await saveInvoiceToDB(AppState.currentInvoice);
+    if (res.status === "success") {
+      alert(paymentOnly ? "تم تسجيل الدفعة (Firebase)." : "تم حفظ الفاتورة (Firebase).");
+    } else {
+      // كحل إضافي: Queue (لو أردت)
+      if (typeof queueInvoiceForSync === "function") queueInvoiceForSync(AppState.currentInvoice);
+      alert("تعذر الحفظ الآن، تم حفظها محلياً وسيتم إرسالها لاحقاً.");
+    }
+  } else {
+    if (typeof queueInvoiceForSync === "function") queueInvoiceForSync(AppState.currentInvoice);
+    alert("Firebase غير جاهز، تم حفظها محلياً.");
+  }
 
   await createNewInvoice(type);
+  if (typeof refreshDashboard === "function") refreshDashboard();
 }
+
 
 window.__INVOICE_READY__ = true;
