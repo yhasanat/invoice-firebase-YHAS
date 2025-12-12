@@ -1,4 +1,5 @@
 /* assets/js/data.js */
+console.log("DATA.JS LOADED"); /* اضافة هذا السطر لاختبار الفيربيس فقط */
 
 const DataStore = {
   products: [],
@@ -221,10 +222,27 @@ function updateCustomersDatalist() {
   });
 }
 
-/* تحميل أولي */
+/* تحميل أولي
 async function loadAllData() {
   await loadProducts();
   await loadCustomers();
   await loadInvoices();
+}
+ */
+async function loadAllData() {
+  console.log("loadAllData OFFLINE MODE");
+
+  DataStore.products = [
+    { barcode:"11001000111", name:"جاكيت", priceRetail:90, priceWholesale:80 },
+    { barcode:"20001000111", name:"بنطلون", priceRetail:70, priceWholesale:60 }
+  ];
+
+  DataStore.customers = [
+    { name:"زبون نقدي" },
+    { name:"تاجر" }
+  ];
+
+  DataStore.invoices = [];
+  updateCustomersDatalist();
 }
 
