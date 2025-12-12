@@ -1,10 +1,13 @@
-/* -----------------------------------------
-   app.js – نقطة دخول التطبيق (Bootstrap آمن)
-------------------------------------------*/
+/* =====================================================
+   app.js – Bootstrap آمن (Offline + Firebase اختياري)
+===================================================== */
 
-/* إظهار الواجهة المطلوبة */
+/* -----------------------------------------------------
+   إظهار الصفحات
+----------------------------------------------------- */
 function showView(viewId){
   $all(".view").forEach(v => v.classList.remove("active"));
+
   const view = $("#view-" + viewId);
   if(view) view.classList.add("active");
 
@@ -14,50 +17,59 @@ function showView(viewId){
 
   if(viewId === "dashboard"){
     refreshDashboard();
-  } else if(viewId === "stock"){
+  }
+
+  if(viewId === "stock"){
     const search = $("#stock-search");
     renderStockTable(search ? search.value : "");
   }
 }
 
-/* ربط الأحداث (Safe DOM Binding) */
+/* -----------------------------------------------------
+   ربط الأحداث (Safe – لا يكسر التطبيق)
+----------------------------------------------------- */
 function initEvents(){
 
-  on("#btn-update-balances","click", () => {
-    alert("يتم احتساب الأرصدة من الفواتير المسجلة (مدين - دائن) لكل عميل دون تعديل يدوي.");
-  });
-
-  on("#btn-recalc-stock","click", async () => {
-    await loadProducts();
-    const search = $("#stock-search");
-    await renderStockTable(search ? search.value : "");
-    await refreshDashboard();
-    alert("تم تحديث عرض المخزون.");
-  });
-
-  on("#btn-full-sync","click", async () => {
-    const syncRes = await syncAllPendingData();
-    await loadAllData();
-    await refreshDashboard();
-    alert(
-      "مزامنة البيانات المعلقة:\n" +
-      `- فواتير أُرسلت: ${syncRes.invoicesSent} (متبقي: ${syncRes.invoicesRemaining})\n` +
-      `- حركات مخزون أُرسلت: ${syncRes.stockSent} (متبقي: ${syncRes.stockRemaining})`
-    );
-  });
-
-  /* أزرار التنقل */
+  /* التنقل */
   $all(".nav-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       showView(btn.dataset.view);
     });
   });
 
-  /* باركود بيع مفرق */
+  /* معلومات */
+  on("#btn-update-balances","click", () => {
+    alert("يتم احتساب الأرصدة تلقائياً من الفواتير المسجلة.");
+  });
+
+  /* تحديث المخزون */
+  on("#btn-recalc-stock","click", async () => {
+    await loadProducts();
+    const s = $("#stock-search");
+    await renderStockTable(s ? s.value : "");
+    await refreshDashboard();
+    alert("تم تحديث عرض المخزون.");
+  });
+
+  /* مزامنة */
+  on("#btn-full-sync","click", async () => {
+    const res = await syncAllPendingData();
+    await loadAllData();
+    await refreshDashboard();
+    alert(
+      "المزامنة:\n" +
+      `فواتير مرسلة: ${res.invoicesSent}\n` +
+      `فواتير متبقية: ${res.invoicesRemaining}\n` +
+      `مخزون مرسل: ${res.stockSent}\n` +
+      `مخزون متبقي: ${res.stockRemaining}`
+    );
+  });
+
+  /* باركود – مفرق */
   on("#retail-barcode","keydown", e => {
     if(e.key === "Enter"){
       const code = e.target.value.trim();
-      const qty = Number($("#retail-default-qty")?.value || 1);
+      const qty  = Number($("#retail-default-qty")?.value || 1);
       if(code){
         addItemToCurrentInvoice(code, qty, "retail");
         e.target.value = "";
@@ -65,11 +77,11 @@ function initEvents(){
     }
   });
 
-  /* باركود بيع جملة */
+  /* باركود – جملة */
   on("#wh-barcode","keydown", e => {
     if(e.key === "Enter"){
       const code = e.target.value.trim();
-      const qty = Number($("#wh-default-qty")?.value || 1);
+      const qty  = Number($("#wh-default-qty")?.value || 1);
       if(code){
         addItemToCurrentInvoice(code, qty, "wholesale");
         e.target.value = "";
@@ -77,18 +89,18 @@ function initEvents(){
     }
   });
 
-  /* البحث المتقدم */
+  /* البحث */
   on("#retail-search","input", e => {
-    const results = searchProductsAdvanced(e.target.value);
-    showSuggestions(results, e.target, "retail");
+    const r = searchProductsAdvanced(e.target.value);
+    showSuggestions(r, e.target, "retail");
   });
 
   on("#wh-search","input", e => {
-    const results = searchProductsAdvanced(e.target.value);
-    showSuggestions(results, e.target, "wholesale");
+    const r = searchProductsAdvanced(e.target.value);
+    showSuggestions(r, e.target, "wholesale");
   });
 
-  /* الخصم والدفع */
+  /* خصم ودفع */
   on("#retail-discount","input", () => updateInvoiceTotals("retail"));
   on("#retail-paid","input", () => updateInvoiceTotals("retail"));
   on("#wh-discount","input", () => updateInvoiceTotals("wholesale"));
@@ -106,10 +118,11 @@ function initEvents(){
   on("#btn-wh-save","click", () => saveCurrentInvoice("wholesale", false));
   on("#btn-wh-save-payment-only","click", () => saveCurrentInvoice("wholesale", true));
 
+  /* طباعة */
   on("#btn-retail-print","click", () => printCurrentInvoice("retail"));
   on("#btn-wh-print","click", () => printCurrentInvoice("wholesale"));
 
-  /* كشف الحساب */
+  /* كشف حساب */
   on("#btn-st-run","click", runStatement);
   on("#btn-st-print","click", printStatement);
 
@@ -118,31 +131,33 @@ function initEvents(){
   on("#stock-search","input", e => renderStockTable(e.target.value));
 }
 
-/* --------------------------------------------------
-   Bootstrap آمن (بدون DOMContentLoaded)
--------------------------------------------------- */
+/* -----------------------------------------------------
+   Bootstrap نهائي – لا يعتمد على DOMContentLoaded
+----------------------------------------------------- */
 (async function bootstrapApp(){
   try {
-    console.log("BOOTSTRAP: start");
+    console.log("BOOTSTRAP START");
 
-    /* تحميل البيانات الأساسية */
+    /* تحميل البيانات (Offline أو Firebase) */
     await loadAllData();
 
-    /* إنشاء فاتورة مفرق افتراضية */
+    /* إنشاء فاتورة افتراضية */
     await createNewInvoice("retail");
 
     /* ربط الأحداث */
     initEvents();
 
-    /* تهيئة المزامنة أوفلاين */
-    initSync();
+    /* تهيئة المزامنة */
+    if(typeof initSync === "function"){
+      initSync();
+    }
 
-    /* تحديث لوحة التحكم */
+    /* لوحة التحكم */
     await refreshDashboard();
 
-    console.log("BOOTSTRAP: done");
+    console.log("BOOTSTRAP DONE");
   } catch (e) {
     console.error("BOOTSTRAP ERROR:", e);
-    alert("حدث خطأ أثناء تشغيل النظام، راجع Console");
+    alert("حدث خطأ أثناء تشغيل النظام – راجع Console");
   }
 })();
