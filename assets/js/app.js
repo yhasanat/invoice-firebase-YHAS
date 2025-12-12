@@ -1,7 +1,7 @@
 /* -----------------------------------------
    app.js – نقطة دخول التطبيق (Bootstrap آمن)
 ------------------------------------------*/
-alert("APP.JS IS RUNNING");
+
 /* إظهار الواجهة المطلوبة */
 function showView(viewId){
   $all(".view").forEach(v => v.classList.remove("active"));
