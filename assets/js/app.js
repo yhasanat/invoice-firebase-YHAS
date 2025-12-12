@@ -151,7 +151,13 @@ if (typeof printStatement === "function") {
     await loadAllData();
 
     /* إنشاء فاتورة افتراضية */
-    await createNewInvoice("retail");
+  if (typeof createNewInvoice !== "function") {
+  alert("invoice.js لم يتم تحميله");
+  return;
+}
+
+await createNewInvoice("retail");
+
 
     /* ربط الأحداث */
     initEvents();
