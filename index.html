@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>نظام فواتير ومخزون - Firebase + مخزون ديناميكي</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+<div class="app-shell">
+  <header>
+    <div class="brand">
+      <div class="brand-logo"></div>
+      <div>
+        <div>نظام الفواتير والمخزون</div>
+        <div class="brand-sub">مخزون ديناميكي بدون عمود stock - Firebase + أوفلاين</div>
+      </div>
+    </div>
+    <nav class="nav-buttons">
+      <button class="nav-btn active" data-view="invoice-retail">فاتورة الزبون</button>
+      <button class="nav-btn" data-view="invoice-wholesale">فاتورة التاجر</button>
+      <button class="nav-btn" data-view="statement">كشف حساب</button>
+      <button class="nav-btn" data-view="stock">إدارة الأصناف</button>
+      <button class="nav-btn" data-view="dashboard">لوحة التحكم</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- فاتورة الزبون -->
+    <section id="view-invoice-retail" class="view active">
+      <div class="page-title">
+        فاتورة الزبون
+        <span class="pill">بيع مفرق</span>
+      </div>
+      <div class="page-subtitle">
+        إضافة الأصناف عن طريق الباركود أو البحث المتقدم، تسجيل دفعة، حساب الباقي، وطباعة حرارية.
+      </div>
+
+      <div class="layout-flex">
+        <div class="layout-main card">
+          <div class="card-header">
+            <div class="card-title">بيانات الفاتورة</div>
+            <div class="card-meta">
+              رقم الفاتورة:
+              <span id="retail-invoice-number" class="badge"></span>
+              • التاريخ:
+              <span id="retail-invoice-date" class="badge"></span>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-field">
+              <label>الزبون</label>
+              <input id="retail-customer" list="customers-list" class="input" placeholder="اكتب اسم الزبون أو اختر من القائمة">
+            </div>
+            <div class="form-field narrow">
+              <label>نوع الحساب</label>
+              <select id="retail-account-type" class="input">
+                <option value="cash" selected>نقدي</option>
+                <option value="credit">آجل</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-field">
+              <label>البحث بالباركود</label>
+              <input id="retail-barcode" class="input" placeholder="مرر الباركود أو اكتب ثم Enter">
+            </div>
+            <div class="form-field narrow">
+              <label>الكمية الافتراضية</label>
+              <input id="retail-default-qty" type="number" min="1" value="1" class="input">
+            </div>
+            <div class="form-field medium">
+              <label>بحث متقدم</label>
+              <input id="retail-search" class="input" placeholder="بحث بالاسم / #جزء من الباركود">
+            </div>
+          </div>
+
+          <div class="chip-row">
+            <span class="chip">Enter لإضافة الصنف من حقل الباركود</span>
+            <span class="chip">في البحث المتقدم: اكتب الاسم أو # وجزء من الباركود</span>
+          </div>
+
+          <div class="table-wrapper">
+            <table id="retail-items-table" class="table-small">
+              <thead>
+              <tr>
+                <th>#</th>
+                <th>الباركود</th>
+                <th>الصنف</th>
+                <th>الكمية</th>
+                <th>السعر</th>
+                <th>القيمة</th>
+                <th></th>
+              </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="totals">
+            <div class="totals-row">
+              <span>الإجمالي قبل الخصم</span>
+              <span id="retail-total-before">0.00</span>
+            </div>
+            <div class="totals-row">
+              <span>الخصم</span>
+              <input id="retail-discount" type="number" min="0" value="0" class="input totals-input">
+            </div>
+            <div class="totals-row highlight">
+              <span>الإجمالي بعد الخصم</span>
+              <span id="retail-total-after">0.00</span>
+            </div>
+            <div class="totals-row">
+              <span>الدفعة</span>
+              <input id="retail-paid" type="number" min="0" value="0" class="input totals-input">
+            </div>
+            <div class="totals-row">
+              <span>الباقي على الزبون</span>
+              <span id="retail-balance" class="text-danger">0.00</span>
+            </div>
+          </div>
+
+          <div class="actions-row">
+            <button class="btn" id="btn-retail-save">حفظ الفاتورة</button>
+            <button class="btn secondary" id="btn-retail-save-payment-only">تسجيل دفعة فقط</button>
+            <button class="btn secondary" id="btn-retail-new">فاتورة جديدة</button>
+            <button class="btn" id="btn-retail-print">طباعة الفاتورة الحرارية</button>
+          </div>
+        </div>
+
+        <aside class="layout-side card">
+          <div class="card-header">
+            <div class="card-title">ملخص حساب الزبون</div>
+            <div class="card-meta" id="retail-customer-summary-title">لا يوجد زبون محدد</div>
+          </div>
+          <div id="retail-customer-summary">
+            <div class="totals-row">
+              <span>إجمالي الذمم السابقة</span>
+              <span id="retail-prev-balance">0.00</span>
+            </div>
+            <div class="totals-row">
+              <span>قيمة الفاتورة الحالية</span>
+              <span id="retail-current-invoice">0.00</span>
+            </div>
+            <div class="totals-row highlight">
+              <span>إجمالي الرصيد بعد الحفظ</span>
+              <span id="retail-new-balance">0.00</span>
+            </div>
+          </div>
+
+          <h4 class="quick-title">اختصارات الأصناف</h4>
+          <div id="retail-quick-box" class="quick-products-box"></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- فاتورة التاجر -->
+    <section id="view-invoice-wholesale" class="view">
+      <div class="page-title">
+        فاتورة التاجر
+        <span class="pill">بيع جملة</span>
+      </div>
+      <div class="page-subtitle">
+        نفس خصائص فاتورة الزبون مع أسعار الجملة.
+      </div>
+
+      <div class="layout-flex">
+        <div class="layout-main card">
+          <div class="card-header">
+            <div class="card-title">بيانات الفاتورة</div>
+            <div class="card-meta">
+              رقم الفاتورة:
+              <span id="wh-invoice-number" class="badge"></span>
+              • التاريخ:
+              <span id="wh-invoice-date" class="badge"></span>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-field">
+              <label>اسم التاجر</label>
+              <input id="wh-customer" list="customers-list" class="input" placeholder="اكتب اسم التاجر أو اختر من القائمة">
+            </div>
+            <div class="form-field narrow">
+              <label>نوع الحساب</label>
+              <select id="wh-account-type" class="input">
+                <option value="cash" selected>نقدي</option>
+                <option value="credit">آجل</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-field">
+              <label>البحث بالباركود</label>
+              <input id="wh-barcode" class="input" placeholder="مرر الباركود أو اكتب ثم Enter">
+            </div>
+            <div class="form-field narrow">
+              <label>الكمية الافتراضية</label>
+              <input id="wh-default-qty" type="number" min="1" value="1" class="input">
+            </div>
+            <div class="form-field medium">
+              <label>بحث متقدم</label>
+              <input id="wh-search" class="input" placeholder="بحث بالاسم / #جزء من الباركود">
+            </div>
+          </div>
+
+          <div class="chip-row">
+            <span class="chip">السعر من عمود سعر الجملة في الأصناف</span>
+          </div>
+
+          <div class="table-wrapper">
+            <table id="wh-items-table" class="table-small">
+              <thead>
+              <tr>
+                <th>#</th>
+                <th>الباركود</th>
+                <th>الصنف</th>
+                <th>الكمية</th>
+                <th>سعر الجملة</th>
+                <th>القيمة</th>
+                <th></th>
+              </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="totals">
+            <div class="totals-row">
+              <span>الإجمالي قبل الخصم</span>
+              <span id="wh-total-before">0.00</span>
+            </div>
+            <div class="totals-row">
+              <span>الخصم</span>
+              <input id="wh-discount" type="number" min="0" value="0" class="input totals-input">
+            </div>
+            <div class="totals-row highlight">
+              <span>الإجمالي بعد الخصم</span>
+              <span id="wh-total-after">0.00</span>
+            </div>
+            <div class="totals-row">
+              <span>الدفعة</span>
+              <input id="wh-paid" type="number" min="0" value="0" class="input totals-input">
+            </div>
+            <div class="totals-row">
+              <span>الباقي على التاجر</span>
+              <span id="wh-balance" class="text-danger">0.00</span>
+            </div>
+          </div>
+
+          <div class="actions-row">
+            <button class="btn" id="btn-wh-save">حفظ الفاتورة</button>
+            <button class="btn secondary" id="btn-wh-save-payment-only">تسجيل دفعة فقط</button>
+            <button class="btn secondary" id="btn-wh-new">فاتورة جديدة</button>
+            <button class="btn" id="btn-wh-print">طباعة الفاتورة الحرارية</button>
+          </div>
+        </div>
+
+        <aside class="layout-side card">
+          <div class="card-header">
+            <div class="card-title">ملخص حساب التاجر</div>
+            <div class="card-meta" id="wh-customer-summary-title">لا يوجد تاجر محدد</div>
+          </div>
+          <div id="wh-customer-summary">
+            <div class="totals-row">
+              <span>إجمالي الذمم السابقة</span>
+              <span id="wh-prev-balance">0.00</span>
+            </div>
+            <div class="totals-row">
+              <span>قيمة الفاتورة الحالية</span>
+              <span id="wh-current-invoice">0.00</span>
+            </div>
+            <div class="totals-row highlight">
+              <span>إجمالي الرصيد بعد الحفظ</span>
+              <span id="wh-new-balance">0.00</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- كشف حساب -->
+    <section id="view-statement" class="view">
+      <div class="page-title">
+        كشف حساب
+        <span class="pill">زبون / تاجر</span>
+      </div>
+      <div class="page-subtitle">
+        عرض الحركات كاملة أو ضمن فترة زمنية محددة مع إمكانية الطباعة A4.
+      </div>
+
+      <div class="card">
+        <div class="form-row">
+          <div class="form-field">
+            <label>الاسم</label>
+            <input id="st-name" list="customers-list" class="input" placeholder="اكتب الاسم أو اختر من القائمة">
+          </div>
+          <div class="form-field narrow">
+            <label>نوع الحساب</label>
+            <select id="st-type" class="input">
+              <option value="all">الكل</option>
+              <option value="retail">زبون (مفرق)</option>
+              <option value="wholesale">تاجر (جملة)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label>من تاريخ</label>
+            <input id="st-from" type="date" class="input">
+          </div>
+          <div class="form-field">
+            <label>إلى تاريخ</label>
+            <input id="st-to" type="date" class="input">
+          </div>
+          <div class="form-field narrow align-bottom">
+            <button class="btn" id="btn-st-run">عرض كشف الحساب</button>
+          </div>
+          <div class="form-field narrow align-bottom">
+            <button class="btn secondary" id="btn-st-print">طباعة كشف الحساب</button>
+          </div>
+        </div>
+
+        <div class="chip-row">
+          <span class="chip">إن تركت التواريخ فارغة سيتم عرض جميع الحركات</span>
+        </div>
+
+        <div class="table-wrapper">
+          <table id="st-table" class="table-small">
+            <thead>
+            <tr>
+              <th>التاريخ</th>
+              <th>رقم المستند</th>
+              <th>النوع</th>
+              <th>الوصف</th>
+              <th>مدين</th>
+              <th>دائن</th>
+              <th>الرصيد</th>
+            </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="totals">
+          <div class="totals-row">
+            <span>إجمالي مدين</span>
+            <span id="st-total-debit">0.00</span>
+          </div>
+          <div class="totals-row">
+            <span>إجمالي دائن</span>
+            <span id="st-total-credit">0.00</span>
+          </div>
+          <div class="totals-row highlight">
+            <span>الرصيد النهائي</span>
+            <span id="st-final-balance">0.00</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- إدارة الأصناف -->
+    <section id="view-stock" class="view">
+      <div class="page-title">إدارة الأصناف والمخزون</div>
+      <div class="page-subtitle">
+        إضافة صنف جديد أو تحديث كمية لصنف موجود مع تسجيل حركة المخزون في Firebase.
+        المخزون المعروض يحسب ديناميكياً من StockUpdates و InvoiceItems.
+      </div>
+
+      <div class="card">
+        <div class="form-row">
+          <div class="form-field">
+            <label>الباركود</label>
+            <input id="stock-barcode" class="input" placeholder="الباركود">
+          </div>
+          <div class="form-field">
+            <label>اسم الصنف</label>
+            <input id="stock-name" class="input" placeholder="اسم الصنف">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label>سعر المفرق</label>
+            <input id="stock-price-retail" type="number" min="0" step="0.01" class="input">
+          </div>
+          <div class="form-field">
+            <label>سعر الجملة</label>
+            <input id="stock-price-wholesale" type="number" min="0" step="0.01" class="input">
+          </div>
+          <div class="form-field">
+            <label>الكمية</label>
+            <input id="stock-qty" type="number" min="0" step="1" class="input">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label>مصدر الصنف</label>
+            <select id="stock-source" class="input">
+              <option value="import">استيراد</option>
+              <option value="exchange">بدل بضاعة من تاجر</option>
+              <option value="buy-trader">شراء من تاجر</option>
+              <option value="local-market">شراء من السوق المحلي</option>
+              <option value="opening-balance">أرصدة افتتاحية / تعديل كميات مخزون</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>ملاحظات</label>
+            <input id="stock-notes" class="input" placeholder="اختياري">
+          </div>
+        </div>
+
+        <div class="actions-row">
+          <button class="btn" id="btn-stock-save">حفظ / تسجيل حركة مخزون</button>
+        </div>
+
+        <hr class="divider">
+
+        <div class="card-header small-padding">
+          <div class="card-title">قائمة الأصناف</div>
+          <div class="card-meta">بحث سريع بالاسم أو الباركود (المخزون يحسب تلقائياً)</div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <input id="stock-search" class="input" placeholder="اكتب جزء من الاسم أو الباركود">
+          </div>
+        </div>
+
+        <div class="table-wrapper tall">
+          <table id="stock-table" class="table-small">
+            <thead>
+            <tr>
+              <th>الباركود</th>
+              <th>الاسم</th>
+              <th>المفرق</th>
+              <th>الجملة</th>
+              <th>المخزون الحالي</th>
+            </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- لوحة التحكم -->
+    <section id="view-dashboard" class="view">
+      <div class="page-title">لوحة التحكم</div>
+      <div class="page-subtitle">
+        ملخص سريع للمبيعات وعدد الفواتير وحالة المخزون (يستخدم المخزون الديناميكي من Firebase).
+      </div>
+
+      <div class="dashboard-grid">
+        <div class="card">
+          <div class="stat-value" id="db-today-sales">0.00</div>
+          <div class="stat-label">إجمالي مبيعات اليوم</div>
+        </div>
+        <div class="card">
+          <div class="stat-value" id="db-invoices-count">0</div>
+          <div class="stat-label">عدد الفواتير</div>
+        </div>
+        <div class="card">
+          <div class="stat-value" id="db-customers-count">0</div>
+          <div class="stat-label">عدد الزبائن / التجار</div>
+        </div>
+        <div class="card">
+          <div class="stat-value" id="db-low-stock">0</div>
+          <div class="stat-label">أصناف مخزونها قليل (&lt; 5)</div>
+        </div>
+      </div>
+
+      <div style="margin-top:15px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn" id="btn-update-balances">توضيح احتساب الأرصدة</button>
+        <button class="btn secondary" id="btn-recalc-stock">تحديث عرض المخزون من Firebase</button>
+        <button class="btn danger" id="btn-full-sync">مزامنة البيانات المعلقة (أوفلاين) مع Firebase</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- منطقة الطباعة (فاتورة حرارية + كشف حساب A4) -->
+<div id="print-area">
+  <div class="receipt" id="receipt-content"></div>
+</div>
+
+<datalist id="customers-list"></datalist>
+<div id="search-suggestions" class="search-dropdown hidden"></div>
+
+<!-- Firebase (Compat SDK) -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script>
+  // إعداد Firebase
+  const firebaseConfig = {
+    apiKey: "AIzaSyAvb_76Pm-U74MYUHMBk8xl9-iD8vPmoU0",
+    authDomain: "invoicestockapp.firebaseapp.com",
+    projectId: "invoicestockapp",
+    storageBucket: "invoicestockapp.firebasestorage.app",
+    messagingSenderId: "403989131218",
+    appId: "1:403989131218:web:60cfad56a7d3abe306a20b"
+  };
+  firebase.initializeApp(firebaseConfig);
+  window.db = firebase.firestore();
+</script>
+
+<script type="module" src="assets/js/utils.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/invoice.js"></script>
+<script src="assets/js/products.js"></script>
+<script src="assets/js/search.js"></script>
+<script src="assets/js/dashboard.js"></script>
+<script src="assets/js/print.js"></script>
+<script src="assets/js/sync.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
