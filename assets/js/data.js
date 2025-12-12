@@ -1,5 +1,6 @@
 /* assets/js/data.js */
-console.log("DATA.JS LOADED"); /* اضافة هذا السطر لاختبار الفيربيس فقط */
+
+console.log("DATA.JS OFFLINE MODE"); /* اضافة هذا السطر لاختبار الفيربيس فقط */
 
 const DataStore = {
   products: [],
