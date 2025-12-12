@@ -123,8 +123,17 @@ function initEvents(){
   on("#btn-wh-print","click", () => printCurrentInvoice("wholesale"));
 
   /* كشف حساب */
+  if (typeof runStatement === "function") {
   on("#btn-st-run","click", runStatement);
+} else {
+  console.warn("runStatement not loaded");
+}
+
+if (typeof printStatement === "function") {
   on("#btn-st-print","click", printStatement);
+} else {
+  console.warn("printStatement not loaded");
+}
 
   /* إدارة الأصناف */
   on("#btn-stock-save","click", saveStockItem);
