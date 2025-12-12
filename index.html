@@ -507,6 +507,14 @@
   firebase.initializeApp(firebaseConfig);
   window.db = firebase.firestore();
 </script>
+
+<!-- Firebase (compat) - load ONCE -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<!-- Init Firebase (must be after firebase-compat libs) -->
+<script src="assets/js/firebase-init.js"></script>
+  
  <script src="assets/js/utils.js"></script>
 <script src="assets/js/data.js"></script>
 
