@@ -1,6 +1,7 @@
 /* ===============================
    invoice.js – Firebase FINAL
 ================================ */
+console.log("INVOICE.JS LOADED");
 
 const AppState = { currentInvoice: null };
 
@@ -48,3 +49,4 @@ async function saveCurrentInvoice(type) {
   alert("تم حفظ الفاتورة على Firebase");
   createNewInvoice(type);
 }
+window.__INVOICE_READY__ = true;
