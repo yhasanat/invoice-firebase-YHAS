@@ -508,7 +508,12 @@
   window.db = firebase.firestore();
 </script>
 <!-- Firebase MUST load first -->
-<script type="module" src="assets/js/firebase-init.js"></script>
+<!-- Firebase (compat – global) -->
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore-compat.js"></script>
+
+<script src="assets/js/firebase-init.js"></script>
+
 
 <!-- ثم سكربتاتك العادية -->
 <script src="assets/js/utils.js"></script>
