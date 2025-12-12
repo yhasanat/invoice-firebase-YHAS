@@ -1,6 +1,15 @@
-/* assets/js/data.js */
+/* =====================================================
+   data.js – Firebase First + Offline fallback
+===================================================== */
 
-console.log("DATA.JS OFFLINE MODE"); /* اضافة هذا السطر لاختبار الفيربيس فقط */
+const DB = {
+  products: "Products",
+  customers: "Customers",
+  invoices: "Invoices",
+  invoiceItems: "InvoiceItems",
+  payments: "Payments",
+  stockUpdates: "StockUpdates"
+};
 
 const DataStore = {
   products: [],
@@ -9,64 +18,72 @@ const DataStore = {
 };
 
 const FALLBACK_PRODUCTS = [
-  { barcode:"11001000111", name:"جاكيت", priceRetail:0, priceWholesale:0 },
-  { barcode:"20001000111", name:"بنطلون", priceRetail:0, priceWholesale:0 }
+  { barcode:"11001000111", name:"جاكيت", priceRetail:90, priceWholesale:80 },
+  { barcode:"20001000111", name:"بنطلون", priceRetail:70, priceWholesale:60 }
 ];
 
-async function fbReady(){
-  if(window.FB_READY) await window.FB_READY;
-  if(!window.FB || !window.FB.db) throw new Error("Firebase not initialized");
+function fbOK() {
+  return !!(window.FIREBASE_OK && window.FB && window.FB.db);
 }
 
-/* تحميل الأصناف */
+/* --------------------------
+   Loaders
+-------------------------- */
+
 async function loadProducts() {
   try {
-    await fbReady();
-    const rows = await window.FB.getAll(DB.products);
-    if (Array.isArray(rows) && rows.length) {
-      DataStore.products = rows.map(p => ({
-        barcode: String(p.barcode || ""),
+    if (fbOK()) {
+      const rows = await window.FB.getAll(DB.products);
+      DataStore.products = (rows || []).map(p => ({
+        barcode: String(p.barcode || p.__docId || ""),
         name: p.name || "",
         priceRetail: Number(p.priceRetail || 0),
         priceWholesale: Number(p.priceWholesale || 0)
       })).filter(p => p.barcode);
+      if (!DataStore.products.length) DataStore.products = FALLBACK_PRODUCTS.slice();
     } else {
       DataStore.products = FALLBACK_PRODUCTS.slice();
     }
-  } catch (err) {
-    console.error("Error loading products:", err);
+  } catch (e) {
+    console.error("loadProducts error", e);
     DataStore.products = FALLBACK_PRODUCTS.slice();
   }
 }
 
-/* تحميل العملاء */
 async function loadCustomers() {
   try {
-    await fbReady();
-    const rows = await window.FB.getAll(DB.customers);
-    if (Array.isArray(rows) && rows.length) {
-      DataStore.customers = rows.map(c => ({ name: c.name || "" })).filter(c => c.name);
+    if (fbOK()) {
+      const rows = await window.FB.getAll(DB.customers);
+      DataStore.customers = (rows || [])
+        .map(c => ({ name: (c.name || c.__docId || "").trim() }))
+        .filter(c => c.name);
+      if (!DataStore.customers.length) DataStore.customers = [{ name: "زبون نقدي" }, { name: "تاجر" }];
     } else {
-      DataStore.customers = [{ name:"زبون نقدي" }, { name:"تاجر" }];
+      DataStore.customers = [{ name: "زبون نقدي" }, { name: "تاجر" }];
     }
-  } catch (err) {
-    console.error("Error loading customers:", err);
-    DataStore.customers = [{ name:"زبون نقدي" }, { name:"تاجر" }];
+  } catch (e) {
+    console.error("loadCustomers error", e);
+    DataStore.customers = [{ name: "زبون نقدي" }, { name: "تاجر" }];
   }
   updateCustomersDatalist();
 }
 
-/* تحميل الفواتير + الأصناف */
 async function loadInvoices() {
   try {
-    await fbReady();
+    if (!fbOK()) {
+      DataStore.invoices = [];
+      return;
+    }
+
     const inv = await window.FB.getAll(DB.invoices);
     const items = await window.FB.getAll(DB.invoiceItems);
 
     const map = {};
     (inv || []).forEach(r => {
-      map[String(r.id)] = {
-        id: String(r.id),
+      const id = String(r.id || r.__docId || "");
+      if (!id) return;
+      map[id] = {
+        id,
         type: r.type,
         name: r.name,
         customerType: r.customerType,
@@ -79,26 +96,32 @@ async function loadInvoices() {
     });
 
     (items || []).forEach(line => {
-      const invId = String(line.invoiceId || "");
-      if (!map[invId]) return;
-      map[invId].items.push({
+      const invoiceId = String(line.invoiceId || "");
+      if (!map[invoiceId]) return;
+      map[invoiceId].items.push({
         barcode: String(line.barcode || ""),
         name: line.name || "",
         qty: Number(line.qty || 0),
-        price: Number(line.priceRetail || line.priceWholesale || 0)
+        price: Number(line.price || line.priceRetail || line.priceWholesale || 0)
       });
     });
 
     DataStore.invoices = Object.values(map);
-  } catch (err) {
-    console.error("Error loading invoices:", err);
+  } catch (e) {
+    console.error("loadInvoices error", e);
     DataStore.invoices = [];
   }
 }
 
-/* حساب مخزون جميع الأصناف: StockUpdates + InvoiceItems */
-async function calculateAllStocks(){
-  await fbReady();
+/* --------------------------
+   Stocks (dynamic)
+-------------------------- */
+async function calculateAllStocks() {
+  if (!fbOK()) {
+    // Offline fallback: مخزون صفر (أو عدّلها حسب رغبتك)
+    return {};
+  }
+
   const adds = await window.FB.getAll(DB.stockUpdates);
   const sales = await window.FB.getAll(DB.invoiceItems);
   const stockMap = {};
@@ -106,86 +129,98 @@ async function calculateAllStocks(){
   (adds || []).forEach(r => {
     const bc = String(r.barcode || "");
     const qty = Number(r.changeQty || 0);
-    if(!bc) return;
+    if (!bc) return;
     stockMap[bc] = (stockMap[bc] || 0) + qty;
   });
 
   (sales || []).forEach(r => {
     const bc = String(r.barcode || "");
     const qty = Number(r.qty || 0);
-    if(!bc) return;
+    if (!bc) return;
     stockMap[bc] = (stockMap[bc] || 0) - qty;
   });
 
   return stockMap;
 }
 
-/* حفظ فاتورة: Batch (Invoices + InvoiceItems + StockUpdates sale) */
+/* --------------------------
+   Save Invoice (Batch)
+-------------------------- */
 async function saveInvoiceToDB(invoice) {
+  if (!fbOK()) {
+    return { status: "error", message: "Firebase not ready" };
+  }
+
   try {
-    await fbReady();
-    const batch = window.FB.writeBatch();
+    const batch = window.FB.batch();
 
-    // Invoices: docId = invoice.id
-    batch.set(
-      window.FB.doc(window.FB.db, DB.invoices, String(invoice.id)),
-      {
-        id: String(invoice.id),
-        type: invoice.type,
-        name: invoice.name,
-        customerType: invoice.customerType,
-        dateISO: invoice.dateISO,
-        discount: Number(invoice.discount || 0),
-        paid: Number(invoice.paid || 0),
-        total: Number(invoice.total || 0)
-      },
-      { merge: true }
-    );
+    // Invoice doc id = invoice.id
+    const invRef = window.FB.docRef(DB.invoices, invoice.id);
+    batch.set(invRef, {
+      id: String(invoice.id),
+      type: invoice.type,
+      name: invoice.name,
+      customerType: invoice.customerType || "cash",
+      dateISO: invoice.dateISO,
+      discount: Number(invoice.discount || 0),
+      paid: Number(invoice.paid || 0),
+      total: Number(invoice.total || 0),
+      updatedAt: window.FB.FieldValue.serverTimestamp()
+    }, { merge: true });
 
-    // Items: docId = `${invoiceId}_${barcode}`
-    for (const line of (invoice.items || [])) {
-      const itemId = `${String(invoice.id)}_${String(line.barcode)}`;
-      batch.set(
-        window.FB.doc(window.FB.db, DB.invoiceItems, itemId),
-        {
-          invoiceId: String(invoice.id),
-          barcode: String(line.barcode),
-          name: line.name,
-          qty: Number(line.qty || 0),
-          priceRetail: Number(line.price || 0),
-          priceWholesale: Number(line.price || 0)
-        },
-        { merge: true }
-      );
+    // Items + StockUpdates sale
+    (invoice.items || []).forEach((line, idx) => {
+      const itemId = `${invoice.id}_${idx}_${line.barcode}`;
+      const itemRef = window.FB.docRef(DB.invoiceItems, itemId);
 
-      // StockUpdates sale: docId = `${invoiceId}_${barcode}_sale`
-      const stId = `${String(invoice.id)}_${String(line.barcode)}_sale`;
-      batch.set(
-        window.FB.doc(window.FB.db, DB.stockUpdates, stId),
-        {
-          barcode: String(line.barcode),
-          changeQty: -Number(line.qty || 0),
-          source: "sale",
-          notes: "Invoice " + String(invoice.id),
-          dateISO: invoice.dateISO
-        },
-        { merge: true }
-      );
-    }
+      batch.set(itemRef, {
+        invoiceId: String(invoice.id),
+        barcode: String(line.barcode),
+        name: line.name,
+        qty: Number(line.qty || 0),
+        price: Number(line.price || 0),
+        dateISO: invoice.dateISO
+      }, { merge: true });
+
+      const stId = `${invoice.id}_${idx}_${line.barcode}_sale`;
+      const stRef = window.FB.docRef(DB.stockUpdates, stId);
+
+      batch.set(stRef, {
+        barcode: String(line.barcode),
+        changeQty: -Number(line.qty || 0),
+        source: "sale",
+        notes: "Invoice " + String(invoice.id),
+        dateISO: invoice.dateISO
+      }, { merge: true });
+    });
 
     await batch.commit();
     return { status: "success" };
-  } catch (err) {
-    console.error("Error saving invoice:", err);
-    return { status: "error", message: err.message };
+  } catch (e) {
+    console.error("saveInvoiceToDB error", e);
+    return { status: "error", message: e.message };
   }
 }
 
-/* تسجيل حركة مخزون */
+/* --------------------------
+   Save stock update + product
+-------------------------- */
 async function saveProductToDB(data) {
+  if (!fbOK()) {
+    return { status: "error", message: "Firebase not ready" };
+  }
+
   try {
-    await fbReady();
-    // stock update unique id to avoid duplicates: `${dateISO}_${barcode}_${source}_${ts}`
+    // 1) upsert product doc id = barcode
+    await window.FB.set(DB.products, String(data.barcode), {
+      barcode: String(data.barcode),
+      name: data.name,
+      priceRetail: Number(data.priceRetail || 0),
+      priceWholesale: Number(data.priceWholesale || 0),
+      updatedAt: window.FB.FieldValue.serverTimestamp()
+    }, true);
+
+    // 2) stock update record (unique by timestamp)
     const docId = `${data.dateISO}_${data.barcode}_${data.source}_${Date.now()}`;
     await window.FB.set(DB.stockUpdates, docId, {
       barcode: String(data.barcode),
@@ -195,24 +230,18 @@ async function saveProductToDB(data) {
       dateISO: data.dateISO
     }, true);
 
-    // تحديث/إنشاء المنتج كـ docId = barcode
-    await window.FB.set(DB.products, String(data.barcode), {
-      barcode: String(data.barcode),
-      name: data.name,
-      priceRetail: Number(data.priceRetail || 0),
-      priceWholesale: Number(data.priceWholesale || 0)
-    }, true);
-
     return { status: "success" };
-  } catch (err) {
-    console.error("Error saving stock update:", err);
-    return { status: "error", message: err.message };
+  } catch (e) {
+    console.error("saveProductToDB error", e);
+    return { status: "error", message: e.message };
   }
 }
 
-/* Datalist */
+/* --------------------------
+   Datalist
+-------------------------- */
 function updateCustomersDatalist() {
-  const dl = $("#customers-list");
+  const dl = document.querySelector("#customers-list");
   if (!dl) return;
   dl.innerHTML = "";
   const names = [...new Set(DataStore.customers.map(c => c.name))].filter(Boolean);
@@ -223,27 +252,12 @@ function updateCustomersDatalist() {
   });
 }
 
-/* تحميل أولي
+/* --------------------------
+   Load All
+-------------------------- */
 async function loadAllData() {
+  console.log("loadAllData()", fbOK() ? "FIREBASE" : "OFFLINE");
   await loadProducts();
   await loadCustomers();
   await loadInvoices();
 }
- */
-async function loadAllData() {
-  console.log("loadAllData OFFLINE MODE");
-
-  DataStore.products = [
-    { barcode:"11001000111", name:"جاكيت", priceRetail:90, priceWholesale:80 },
-    { barcode:"20001000111", name:"بنطلون", priceRetail:70, priceWholesale:60 }
-  ];
-
-  DataStore.customers = [
-    { name:"زبون نقدي" },
-    { name:"تاجر" }
-  ];
-
-  DataStore.invoices = [];
-  updateCustomersDatalist();
-}
-
