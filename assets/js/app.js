@@ -1,3 +1,26 @@
+/* -----------------------------------------
+   app.js – نقطة دخول التطبيق (Bootstrap آمن)
+------------------------------------------*/
+
+/* إظهار الواجهة المطلوبة */
+function showView(viewId){
+  $all(".view").forEach(v => v.classList.remove("active"));
+  const view = $("#view-" + viewId);
+  if(view) view.classList.add("active");
+
+  $all(".nav-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.view === viewId);
+  });
+
+  if(viewId === "dashboard"){
+    refreshDashboard();
+  } else if(viewId === "stock"){
+    const search = $("#stock-search");
+    renderStockTable(search ? search.value : "");
+  }
+}
+
+/* ربط الأحداث (Safe DOM Binding) */
 function initEvents(){
 
   on("#btn-update-balances","click", () => {
@@ -6,7 +29,8 @@ function initEvents(){
 
   on("#btn-recalc-stock","click", async () => {
     await loadProducts();
-    await renderStockTable($("#stock-search") ? $("#stock-search").value : "");
+    const search = $("#stock-search");
+    await renderStockTable(search ? search.value : "");
     await refreshDashboard();
     alert("تم تحديث عرض المخزون.");
   });
@@ -22,10 +46,14 @@ function initEvents(){
     );
   });
 
+  /* أزرار التنقل */
   $all(".nav-btn").forEach(btn => {
-    btn.addEventListener("click", () => showView(btn.dataset.view));
+    btn.addEventListener("click", () => {
+      showView(btn.dataset.view);
+    });
   });
 
+  /* باركود بيع مفرق */
   on("#retail-barcode","keydown", e => {
     if(e.key === "Enter"){
       const code = e.target.value.trim();
@@ -37,6 +65,7 @@ function initEvents(){
     }
   });
 
+  /* باركود بيع جملة */
   on("#wh-barcode","keydown", e => {
     if(e.key === "Enter"){
       const code = e.target.value.trim();
@@ -48,6 +77,7 @@ function initEvents(){
     }
   });
 
+  /* البحث المتقدم */
   on("#retail-search","input", e => {
     const results = searchProductsAdvanced(e.target.value);
     showSuggestions(results, e.target, "retail");
@@ -58,6 +88,7 @@ function initEvents(){
     showSuggestions(results, e.target, "wholesale");
   });
 
+  /* الخصم والدفع */
   on("#retail-discount","input", () => updateInvoiceTotals("retail"));
   on("#retail-paid","input", () => updateInvoiceTotals("retail"));
   on("#wh-discount","input", () => updateInvoiceTotals("wholesale"));
@@ -66,6 +97,7 @@ function initEvents(){
   on("#retail-customer","change", () => updateInvoiceTotals("retail"));
   on("#wh-customer","change", () => updateInvoiceTotals("wholesale"));
 
+  /* أزرار الفواتير */
   on("#btn-retail-new","click", () => createNewInvoice("retail"));
   on("#btn-wh-new","click", () => createNewInvoice("wholesale"));
 
@@ -77,9 +109,40 @@ function initEvents(){
   on("#btn-retail-print","click", () => printCurrentInvoice("retail"));
   on("#btn-wh-print","click", () => printCurrentInvoice("wholesale"));
 
+  /* كشف الحساب */
   on("#btn-st-run","click", runStatement);
   on("#btn-st-print","click", printStatement);
 
+  /* إدارة الأصناف */
   on("#btn-stock-save","click", saveStockItem);
   on("#stock-search","input", e => renderStockTable(e.target.value));
 }
+
+/* --------------------------------------------------
+   Bootstrap آمن (بدون DOMContentLoaded)
+-------------------------------------------------- */
+(async function bootstrapApp(){
+  try {
+    console.log("BOOTSTRAP: start");
+
+    /* تحميل البيانات الأساسية */
+    await loadAllData();
+
+    /* إنشاء فاتورة مفرق افتراضية */
+    await createNewInvoice("retail");
+
+    /* ربط الأحداث */
+    initEvents();
+
+    /* تهيئة المزامنة أوفلاين */
+    initSync();
+
+    /* تحديث لوحة التحكم */
+    await refreshDashboard();
+
+    console.log("BOOTSTRAP: done");
+  } catch (e) {
+    console.error("BOOTSTRAP ERROR:", e);
+    alert("حدث خطأ أثناء تشغيل النظام، راجع Console");
+  }
+})();
