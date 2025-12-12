@@ -507,25 +507,20 @@
   firebase.initializeApp(firebaseConfig);
   window.db = firebase.firestore();
 </script>
-  /*   <!-- Firebase MUST load first -->
-<!-- Firebase (compat – global) -->
-<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore-compat.js"></script>
-
-<script src="assets/js/firebase-init.js"></script>
-*/
-
-<!-- ثم سكربتاتك العادية -->
-<script src="assets/js/utils.js"></script>
+ <script src="assets/js/utils.js"></script>
 <script src="assets/js/data.js"></script>
+
+<!-- هذا مهم -->
 <script src="assets/js/invoice.js"></script>
+
 <script src="assets/js/products.js"></script>
 <script src="assets/js/search.js"></script>
 <script src="assets/js/dashboard.js"></script>
 <script src="assets/js/print.js"></script>
 <script src="assets/js/sync.js"></script>
 
-<!-- app.js يجب أن يكون الأخير -->
+<!-- app.js دائماً الأخير -->
 <script src="assets/js/app.js"></script>
+
 </body>
 </html>
