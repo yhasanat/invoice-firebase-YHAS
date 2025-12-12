@@ -507,8 +507,11 @@
   firebase.initializeApp(firebaseConfig);
   window.db = firebase.firestore();
 </script>
+<!-- Firebase MUST load first -->
+<script type="module" src="assets/js/firebase-init.js"></script>
 
-<script type="module" src="assets/js/utils.js"></script>
+<!-- ثم سكربتاتك العادية -->
+<script src="assets/js/utils.js"></script>
 <script src="assets/js/data.js"></script>
 <script src="assets/js/invoice.js"></script>
 <script src="assets/js/products.js"></script>
