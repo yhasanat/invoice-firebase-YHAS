@@ -4,14 +4,7 @@ const CONFIG = {
   backend: "firebase", // "firebase" فقط في هذه النسخة
 };
 
-const DB = {
-  products: "Products",
-  customers: "Customers",
-  invoices: "Invoices",
-  invoiceItems: "InvoiceItems",
-  payments: "Payments",
-  stockUpdates: "StockUpdates"
-};
+
 
 function isOnline() {
   return navigator.onLine;
